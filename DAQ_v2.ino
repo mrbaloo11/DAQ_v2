@@ -334,10 +334,10 @@ void Bombas(int boton1, int boton2){
       }
       
       if(tit >= T_min){       //Cuando el tanque está más caliente que T_min
-        if(tid >= T_off)        //Si el digestor está por arriba de T_off
-          SerpSignal = false;     //apaga la bomba
         if(tid <= T_on)         //Si el digestor está por debajo de T_on
           SerpSignal = true;      //enciende la bomba
+        if(tid >= T_off)        //Si el digestor está por arriba de T_off
+          SerpSignal = false;     //apaga la bomba
       }
       break;
     case 2:
@@ -386,8 +386,15 @@ void Bombas(int boton1, int boton2){
   }
 
   lcd.setCursor(6,1);
-  lcd.print(" BS:"); lcd.print(BombState[BombSerpState]);
-  lcd.print(" BR:"); lcd.print(BombState[BombRecState]);
+  lcd.print(" BS");
+  if(SerpSignal) lcd.print("+");
+  else lcd.print("-");
+  lcd.print(BombState[BombSerpState]);
+
+  lcd.print(" BR");
+  if(RecSignal) lcd.print("+");
+  else lcd.print("-");
+  lcd.print(BombState[BombRecState]);
 }
 
 void MedirFlujo(){
