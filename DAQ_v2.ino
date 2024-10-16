@@ -67,12 +67,13 @@ int BotRecState = 0, lastRecState = 0;
 int BombSerpState = 1; //0 = Off, 1 = Auto, 2 = Man
 int BombRecState = 1; 
 String BombState[3] = {"Off", "Aut", "Man"};
+bool SerpCheck = false; //Enclavamiento de la bomba del serpentín
 
 const uint32_t t_on = 900;    //Tiempo bomba recirculadora encendida [seg]
 const uint32_t t_off = 1800;  //Tiempo bomba recirculadora apagada [seg]
 bool lastRec = false;
 
-int T_min = 40, T_off = 40, T_on = 37;  //Temperaturas mínima, de apagado y de encendido
+int T_min = 40, T_off = 40, T_on = 37;  //Temperaturas mínima del tanque, mínima del digestor y máxima del digestor (histéresis entre T_off y T_on)
 
 // * Variables Globales *
 // Temporizadores
@@ -267,7 +268,9 @@ void ImprimirFechaHora(){ //Guarda e imprime en la LCD la fecha y hora del RTC
 void Bombas(int boton1, int boton2){
   DateTime myDT = Reloj.now();
 
-  String TIT, TID;
+  bool SerpSignal = false, RecSignal = false;
+
+  String TIT, TID, TES, TSS;
 
   if(termos[7].Estado(DS18B20a))
     TIT = termos[7].Temp(DS18B20a);
@@ -279,8 +282,20 @@ void Bombas(int boton1, int boton2){
   else
     TID = termos[1].Temp(DS18B20b);
 
+  if(termos[4].Estado(DS18B20a))
+    TES = termos[4].Temp(DS18B20a);
+  else
+    TES = termos[4].Temp(DS18B20b);
+
+  if(termos[3].Temp(DS18B20a))
+    TSS = termos[3].Temp(DS18B20a);
+  else
+    TSS = termos[3].Temp(DS18B20b);
+
   float tit = TIT.toFloat();
   float tid = TID.toFloat();
+  float tes = TES.toFloat();
+  float tss = TSS.toFloat();
 
   if(lastSerpState == 0 && boton1 == 1) lastSerpState = 1;
   if(lastRecState == 0 && boton2 == 1) lastRecState = 1;
@@ -299,48 +314,75 @@ void Bombas(int boton1, int boton2){
 
   switch(BombSerpState){
     case 0: 
-      digitalWrite(BombSerp, LOW);
+      SerpSignal = false;
       break;
     case 1:
-      if(tit >= T_min){
-        if(tid >= T_off){
-          BS = String(0);
-          digitalWrite(BombSerp, LOW);
-        }
-        if(tid <= T_on){
-          BS = String(1);
-          digitalWrite(BombSerp, HIGH);
+      // Para aprovechar la prog estructurada, primero revisa si mantiene el enclavamiento fuera de los 5 seg al inicio de cada hora del horario establecido
+      
+      if(SerpCheck && ((myDT.second() > 5 && myDT.minute() == 0) || myDT.minute() >= 1)){ //Si ya pasaron los 5 seg del min 0
+        if(tes >= T_min && tes >= tid)    //y el agua que entra al serpentín está mas caliente que T_min y que la biomasa
+          SerpSignal = true;                //mantiene encendida la bomba
+        else{
+          SerpSignal = false;             //Si no, apaga la bomba y rompe el enclavamiento hasta la siguiente hora
+          SerpCheck = false;
         }
       }
-      else digitalWrite (BombSerp, LOW);
+
+      if(myDT.hour() >= 10 && myDT.hour() <= 20 && myDT.minute() == 0 && myDT.second() <= 5){ //Entre las 10 am y las 8 pm
+        SerpCheck = true;                                               //Enclava la bomba cada hora por los primeros 5 seg del min 0
+        SerpSignal = true;
+      }
+      
+      if(tit >= T_min){       //Cuando el tanque está más caliente que T_min
+        if(tid >= T_off)        //Si el digestor está por arriba de T_off
+          SerpSignal = false;     //apaga la bomba
+        if(tid <= T_on)         //Si el digestor está por debajo de T_on
+          SerpSignal = true;      //enciende la bomba
+      }
       break;
     case 2:
-      digitalWrite(BombSerp, HIGH);
+      SerpSignal = true;
       break;
   }
 
   switch(BombRecState){
     case 0:
-      digitalWrite(BombRec, LOW);
+      RecSignal = false;
       break;
     case 1:
       now = myDT.unixtime();
       if(lastRec && ((now - last_b) >= t_on)){
         lastRec = false;
-        digitalWrite(BombRec, LOW);
-        BR = String(0);
+        RecSignal = false;
         last_b = myDT.unixtime();
       }
       if(!lastRec && ((now - last_b) >= t_off)){
         lastRec = true;
-        digitalWrite(BombRec, HIGH);
-        BR = String(1);
+        RecSignal = true;
         last_b = myDT.unixtime();
       }
       break;
     case 2:
-      digitalWrite(BombRec, HIGH);
+      RecSignal = true;
       break;
+  }
+
+  if(SerpSignal){   //Manda el on/off de la bomba del serpentín y lo escribe en el datalog
+    BS = String(1);
+    digitalWrite(BombSerp, HIGH);
+  }
+  else{
+    BS = String(0);
+    digitalWrite(BombSerp, LOW);
+  }
+
+  if(RecSignal){    //Manda el on/off de la bomba recirculadora y lo escribe en el datalog
+    BR = String(1);
+    digitalWrite(BombRec, HIGH);
+  }
+  else{
+    BR = String(0);
+    digitalWrite(BombRec, LOW);
   }
 
   lcd.setCursor(6,1);
