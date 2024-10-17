@@ -69,15 +69,11 @@ int BombRecState = 1;
 String BombState[3] = {"Off", "Aut", "Man"};
 bool SerpCheck = false; //Enclavamiento de la bomba del serpentín
 
-const uint32_t t_on = 900;    //Tiempo bomba recirculadora encendida [seg]
-const uint32_t t_off = 1800;  //Tiempo bomba recirculadora apagada [seg]
-bool lastRec = false;
-
 int T_min = 40, T_off = 40, T_on = 37;  //Temperaturas mínima del tanque, mínima del digestor y máxima del digestor (histéresis entre T_off y T_on)
 
 // * Variables Globales *
 // Temporizadores
-uint32_t now = 0, last_b = 0, last = 0, lastLCD = 0;
+uint32_t now = 0, last = 0, lastLCD = 0;
 uint32_t nowP = 0, lastP = 0;
 // Variables de impresión
 String anio, mes, dia, hora, min, seg, Fecha, Hora, Encabezado, Sen_Fallo, Temperaturas, BS, BR, Flujo;
@@ -147,7 +143,6 @@ void setup() {
   DateTime myDT = Reloj.now();
   last = myDT.unixtime();
   lastLCD = last;
-  last_b = last;
   lastP = millis();
 }
 
@@ -350,17 +345,10 @@ void Bombas(int boton1, int boton2){
       RecSignal = false;
       break;
     case 1:
-      now = myDT.unixtime();
-      if(lastRec && ((now - last_b) >= t_on)){
-        lastRec = false;
-        RecSignal = false;
-        last_b = myDT.unixtime();
-      }
-      if(!lastRec && ((now - last_b) >= t_off)){
-        lastRec = true;
+      if(myDT.minute() >= 0 && myDT.minute() <= 20) //Cada hora la bomba arranca por 20 min
         RecSignal = true;
-        last_b = myDT.unixtime();
-      }
+      else                                          //Los otros 40 min permanece apagada
+        RecSignal = false;
       break;
     case 2:
       RecSignal = true;
@@ -387,8 +375,8 @@ void Bombas(int boton1, int boton2){
 
   lcd.setCursor(6,1);
   lcd.print(" BS");
-  if(SerpSignal) lcd.print("+");
-  else lcd.print("-");
+  if(SerpSignal) lcd.print("+");        //En la LCD, para ambas bombas,
+  else lcd.print("-");                  //"+" es encendido y "-" es apagado
   lcd.print(BombState[BombSerpState]);
 
   lcd.print(" BR");
