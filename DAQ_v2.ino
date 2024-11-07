@@ -20,6 +20,11 @@
 #define BombRec 25   
 #define FlujoReset 29
 
+// * Modo del Serial Monitor/Plotter
+//#define modo 1    // Flujo, TSD, TID, TSS, TES, TST, TET, TSCS, TIT, TECS, TUCS, TOCS, TMCS
+#define modo 2    // Flujo, TID, TES, TSS, TIT
+
+
 // * Objetos y estructuras de los periféricos *
 // Pantalla LCD
 const int LCDcols = 20, LCDrows = 4;
@@ -72,11 +77,14 @@ bool SerpCheck = false; //Enclavamiento de la bomba del serpentín
 int T_min = 40, T_off = 40, T_on = 37;  //Temperaturas mínima del tanque, mínima del digestor y máxima del digestor (histéresis entre T_off y T_on)
 
 // * Variables Globales *
+
 // Temporizadores
 uint32_t now = 0, last = 0, lastLCD = 0;
 uint32_t nowP = 0, lastP = 0;
+
 // Variables de impresión
 String anio, mes, dia, hora, min, seg, Fecha, Hora, Encabezado, Sen_Fallo, Temperaturas, BS, BR, Flujo;
+
 // Acumuladores y promediadores
 uint8_t pulsos = 0;
 int FalloAcum = 0, termos_tot = 0, deviceCount = 0, ciclosFlujo = 0, ciclosMin = 0;
@@ -104,7 +112,7 @@ void setup() {
   DS18B20a.begin();        //Iniciar OneWire
   DS18B20b.begin();
   deviceCount = DS18B20a.getDeviceCount() + DS18B20b.getDeviceCount();
-  Serial.println(deviceCount);
+  // Serial.println(deviceCount);
 
   ImprimirFechaHora(); 
 
@@ -132,10 +140,12 @@ void setup() {
   if(dataFile){
     dataFile.println(Encabezado);
     dataFile.close();
-    Serial.println(Fecha);
-    Serial.println(Encabezado);
+    // Serial.println(Fecha);
+    // Serial.println(Encabezado);
   }
-  else Serial.println("Error al abrir el archivo en el setup...");
+  else // Serial.println("Error al abrir el archivo en el setup...");
+
+  Plotter(modo,1);
 
   BS = String(0);
   BR = String(0);
@@ -203,7 +213,7 @@ void loop(){
   
   if(now-last >= 60){                //Cada minuto (en segundos)
     Flujo = String(caudalProm/ciclosMin);
-    Serial.print("Flujo: " + Flujo);  // Verifica que se guarde el dato de flujo
+    // Serial.print("Flujo: " + Flujo);  // Verifica que se guarde el dato de flujo
     caudalProm = 0;
     ciclosMin = 0;
 
@@ -222,7 +232,8 @@ void loop(){
     if(dataFile){
       dataFile.println(Temperaturas);
       dataFile.close();
-      Serial.println(Temperaturas);
+      // Serial.println(Temperaturas);
+      Plotter(modo,2); 
     }
     else Serial.println("Error al abrir el archivo...");
 
@@ -234,6 +245,51 @@ void loop(){
 }
 
 // * Funciones auxiliares *
+
+void Plotter(int mod, int ciclo){ // Ciclo: 1-Setup, 2-loop
+  String temporal;
+  
+  switch(mod){
+    case 1:
+      if(ciclo == 1) Serial.println("Flujo:,TSD:,TID:,TSS:,TES:,TST:,TET:,TSCS:,TIT:,TECS:,TUCS:,TOCS:,TMCS:");
+      if(ciclo == 2){
+        Serial.print(Flujo.toFloat()); Serial.print(","); // Imprime el flujo
+        for(int i = 0; i < termos_tot; i++){      // Recorre los sensores
+          if(termos[i].Estado(DS18B20a))
+            temporal = termos[i].Temp(DS18B20a);  // Guarda el dato en un string temporal
+          else
+            temporal = termos[i].Temp(DS18B20b);
+          if(i < (termos_tot-1)){
+            Serial.print(temporal.toFloat());     // Imprime cada sensor
+            Serial.print(",");
+          }
+          else Serial.println(temporal.toFloat());// Si es el último, imprime un salto de línea
+        }
+      }
+      break;
+    case 2:
+      if(ciclo == 1) Serial.println("Flujo:,TID:,TSS:,TES:,TIT:");
+      if(ciclo == 2){
+        Serial.print(Flujo.toFloat()); Serial.print(","); // Imprime el flujo
+        for(int i = 0; i < termos_tot; i++){          // Recorre los sensores
+          if(termos[i].nom == "TID" || termos[i].nom == "TSS" || termos[i].nom == "TES" || termos[i].nom == "TIT"){  // Si es alguno de los sensores seleccionados
+            if(termos[i].Estado(DS18B20a))
+              temporal = termos[i].Temp(DS18B20a);    //Guarda el dato en un string temporal
+            else
+              temporal = termos[i].Temp(DS18B20b);
+          
+            if(i < (termos_tot-1)){
+              Serial.print(temporal.toFloat());       //Imprime el valor
+              Serial.print(",");
+            }
+            else Serial.println(temporal.toFloat());  //Si es el último, imprime el valor y un salto de línea
+          }
+        }
+      }
+      break;
+  }
+}
+
 void ImprimirFechaHora(){ //Guarda e imprime en la LCD la fecha y hora del RTC
   char buffer[5];
   DateTime myDT = Reloj.now();
