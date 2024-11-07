@@ -203,6 +203,7 @@ void loop(){
   
   if(now-last >= 60){                //Cada minuto (en segundos)
     Flujo = String(caudalProm/ciclosMin);
+    Serial.print("Flujo: " + Flujo);  // Verifica que se guarde el dato de flujo
     caudalProm = 0;
     ciclosMin = 0;
 
