@@ -385,6 +385,7 @@ void Bombas(int boton1, int boton2){
       }
 
       if(myDT.hour() >= 9 && myDT.hour() <= 18 && myDT.minute() == 0 && myDT.second() <= 10){ //Entre las 9 am y las 6 pm
+
         SerpCheck = true;                                               //Enclava la bomba cada hora por los primeros 10 seg del min 0
         SerpSignal = true;
       }
