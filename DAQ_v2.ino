@@ -235,7 +235,7 @@ void loop(){
       // Serial.println(Temperaturas);
       Plotter(modo,2); 
     }
-    else Serial.println("Error al abrir el archivo...");
+    else //Serial.println("Error al abrir el archivo...");
 
     last = myDT.unixtime();
   } 
@@ -277,13 +277,13 @@ void Plotter(int mod, int ciclo){ // Ciclo: 1-Setup, 2-loop
               temporal = termos[i].Temp(DS18B20a);    //Guarda el dato en un string temporal
             else
               temporal = termos[i].Temp(DS18B20b);
-          
-            if(i < (termos_tot-1)){
-              Serial.print(temporal.toFloat());       //Imprime el valor
-              Serial.print(",");
-            }
-            else Serial.println(temporal.toFloat());  //Si es el último, imprime el valor y un salto de línea
+
+            Serial.print(temporal.toFloat());
           }
+          if(i < (termos_tot-1)){
+              Serial.print(",");
+          }
+          else Serial.println();  //Si es el último, imprime el valor y un salto de línea
         }
       }
       break;
