@@ -74,7 +74,7 @@ int BombRecState = 1;
 String BombState[3] = {"Off", "Aut", "Man"};
 bool SerpCheck = false; //Enclavamiento de la bomba del serpentín
 
-int T_min = 40, T_off = 40, T_on = 37;  //Temperaturas mínima del tanque, mínima del digestor y máxima del digestor (histéresis entre T_off y T_on)
+int T_off = 48, T_on = 44;  // Temperaturas máxima y mínima del digestor (histéresis entre T_off y T_on)
 
 // * Variables Globales *
 
@@ -322,27 +322,35 @@ void Bombas(int boton1, int boton2){
 
   bool SerpSignal = false, RecSignal = false;
 
-  String TIT, TID, TES, TSS;
-
-  if(termos[7].Estado(DS18B20a))
-    TIT = termos[7].Temp(DS18B20a);
-  else
-    TIT = termos[7].Temp(DS18B20b);
-
-  if(termos[1].Temp(DS18B20a))
-    TID = termos[1].Temp(DS18B20a);
-  else
-    TID = termos[1].Temp(DS18B20b);
-
-  if(termos[4].Estado(DS18B20a))
-    TES = termos[4].Temp(DS18B20a);
-  else
-    TES = termos[4].Temp(DS18B20b);
-
-  if(termos[3].Temp(DS18B20a))
-    TSS = termos[3].Temp(DS18B20a);
-  else
-    TSS = termos[3].Temp(DS18B20b);
+  String nombre, TIT, TID, TES, TSS;
+  
+  for(int i = 0; i < termos_tot; i++){          // Recorre los sensores
+    nombre = termos[i].nom;
+    if(nombre == "TID"){                        // Busca por nombre y guarda su valor
+      if(termos[i].Estado(DS18B20a))
+        TID = termos[i].Temp(DS18B20a);
+      else
+        TID = termos[i].Temp(DS18B20b);
+    }
+    if(nombre == "TSS"){
+      if(termos[i].Estado(DS18B20a))
+        TSS = termos[i].Temp(DS18B20a);
+      else
+        TSS = termos[i].Temp(DS18B20b);
+    }
+    if(nombre == "TES"){
+      if(termos[i].Estado(DS18B20a))
+        TES = termos[i].Temp(DS18B20a);
+      else
+        TES = termos[i].Temp(DS18B20b);
+    }
+    if(nombre == "TIT"){
+      if(termos[i].Estado(DS18B20a))
+        TIT = termos[i].Temp(DS18B20a);
+      else
+        TIT = termos[i].Temp(DS18B20b);
+    }
+  }
 
   float tit = TIT.toFloat();
   float tid = TID.toFloat();
@@ -369,28 +377,25 @@ void Bombas(int boton1, int boton2){
       SerpSignal = false;
       break;
     case 1:
-      // Para aprovechar la prog estructurada, primero revisa si mantiene el enclavamiento fuera de los 5 seg al inicio de cada hora del horario establecido
+      // Para aprovechar la prog estructurada, primero revisa si mantiene el enclavamiento 
+      // fuera de los 10 seg al inicio de cada hora del horario establecido
       
-      if(SerpCheck && ((myDT.second() > 5 && myDT.minute() == 0) || myDT.minute() >= 1)){ //Si ya pasaron los 5 seg del min 0
-        if(tes >= T_min && tes >= tid)    //y el agua que entra al serpentín está mas caliente que T_min y que la biomasa
-          SerpSignal = true;                //mantiene encendida la bomba
+      if(SerpCheck && ((myDT.second() > 10 && myDT.minute() == 0) || myDT.minute() >= 1)){ // Si ya pasaron los 10 seg del min 0
+        if(tes >= T_on && tes >= tid)    // y el agua que entra al serpentín está mas caliente que T_on y que la biomasa
+          SerpSignal = true;                // mantiene encendida la bomba
         else{
           SerpSignal = false;             //Si no, apaga la bomba y rompe el enclavamiento hasta la siguiente hora
           SerpCheck = false;
         }
       }
 
-      if(myDT.hour() >= 10 && myDT.hour() <= 20 && myDT.minute() == 0 && myDT.second() <= 5){ //Entre las 10 am y las 8 pm
+      if(myDT.hour() >= 9 && myDT.hour() <= 18 && myDT.minute() == 0 && myDT.second() <= 10){ //Entre las 9 am y las 6 pm
         SerpCheck = true;                                               //Enclava la bomba cada hora por los primeros 5 seg del min 0
         SerpSignal = true;
       }
+
+      if(tid >= T_off)  SerpSignal = false; // Si el digestor está por arriba de T_off, apaga la bomba      
       
-      if(tit >= T_min){       //Cuando el tanque está más caliente que T_min
-        if(tid <= T_on)         //Si el digestor está por debajo de T_on
-          SerpSignal = true;      //enciende la bomba
-        if(tid >= T_off)        //Si el digestor está por arriba de T_off
-          SerpSignal = false;     //apaga la bomba
-      }
       break;
     case 2:
       SerpSignal = true;
