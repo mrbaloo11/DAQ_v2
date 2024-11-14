@@ -454,7 +454,7 @@ void MedirFlujo(){
   nowP = millis();
 
   if(nowP - lastP >= 500){
-    float frec = (pulsos * 1.0) / ciclosFlujo;
+    float frec = (pulsos * 1.0) / ciclosFlujo; 
     float caudal_V = frec / factor;
     float caudal_m = caudal_V * densidad;
 
