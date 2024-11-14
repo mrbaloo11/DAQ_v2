@@ -235,7 +235,7 @@ void loop(){
       // Serial.println(Temperaturas);
       Plotter(modo,2); 
     }
-    else Serial.println("Error al abrir el archivo...");
+    //else Serial.println("Error al abrir el archivo...");
 
     last = myDT.unixtime();
   } 
@@ -448,17 +448,17 @@ void Bombas(int boton1, int boton2){
 }
 
 void MedirFlujo(){
+  float factor = 7.5; // Factor de conversión 1/2"(7.5), 3/4"(5.5), 1"(3.5)
+  float densidad = 1.0; // kg/L
+  
   byte portCValue = PINC;
 
-  pulsos += portCValue;
+  pulsos += float(portCValue);
   ciclosFlujo++;
   nowP = millis();
 
   if(nowP - lastP >= 500){
-    float factor = 5.5;
-    float densidad = 1.0; // kg/L
-    
-    float frec = (pulsos * 1.0) / ciclosFlujo;
+    float frec = (pulsos * 1.0) / ciclosFlujo; 
     float caudal_V = frec / factor;
     float caudal_m = caudal_V * densidad;
 
