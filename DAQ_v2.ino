@@ -253,38 +253,33 @@ void Plotter(int mod, int ciclo){ // Ciclo: 1-Setup, 2-loop
     case 1:
       if(ciclo == 1) Serial.println("Flujo:,TSD:,TID:,TSS:,TES:,TST:,TET:,TSCS:,TIT:,TECS:,TUCS:,TOCS:,TMCS:");
       if(ciclo == 2){
-        Serial.print(Flujo.toFloat()); Serial.print(","); // Imprime el flujo
+        Serial.print(Flujo.toFloat()); // Imprime el flujo
         for(int i = 0; i < termos_tot; i++){      // Recorre los sensores
           if(termos[i].Estado(DS18B20a))
             temporal = termos[i].Temp(DS18B20a);  // Guarda el dato en un string temporal
           else
             temporal = termos[i].Temp(DS18B20b);
-          if(i < (termos_tot-1)){
-            Serial.print(temporal.toFloat());     // Imprime cada sensor
-            Serial.print(",");
-          }
-          else Serial.println(temporal.toFloat());// Si es el último, imprime un salto de línea
+          Serial.print(",");
+          Serial.print(temporal.toFloat());
         }
+        Serial.println();
       }
       break;
     case 2:
       if(ciclo == 1) Serial.println("Flujo:,TID:,TSS:,TES:,TIT:");
       if(ciclo == 2){
-        Serial.print(Flujo.toFloat()); Serial.print(","); // Imprime el flujo
+        Serial.print(Flujo.toFloat()); // Imprime el flujo
         for(int i = 0; i < termos_tot; i++){          // Recorre los sensores
           if(termos[i].nom == "TID" || termos[i].nom == "TSS" || termos[i].nom == "TES" || termos[i].nom == "TIT"){  // Si es alguno de los sensores seleccionados
             if(termos[i].Estado(DS18B20a))
               temporal = termos[i].Temp(DS18B20a);    //Guarda el dato en un string temporal
             else
               temporal = termos[i].Temp(DS18B20b);
-          
-            if(i < (termos_tot-1)){
-              Serial.print(temporal.toFloat());       //Imprime el valor
-              Serial.print(",");
-            }
-            else Serial.println(temporal.toFloat());  //Si es el último, imprime el valor y un salto de línea
+            Serial.print(",");
+            Serial.print(temporal.toFloat());
           }
         }
+        Serial.println();
       }
       break;
   }
@@ -377,7 +372,7 @@ void Bombas(int boton1, int boton2){
       SerpSignal = false;
       break;
     case 1:
-      // Para aprovechar la prog estructurada, primero revisa si mantiene el enclavamiento 
+      // Para aprovechar la prog estructurada, primero revisa si mantiene el enclavamiento
       // fuera de los 10 seg al inicio de cada hora del horario establecido
       
       if(SerpCheck && ((myDT.second() > 10 && myDT.minute() == 0) || myDT.minute() >= 1)){ // Si ya pasaron los 10 seg del min 0
@@ -390,7 +385,7 @@ void Bombas(int boton1, int boton2){
       }
 
       if(myDT.hour() >= 9 && myDT.hour() <= 18 && myDT.minute() == 0 && myDT.second() <= 10){ //Entre las 9 am y las 6 pm
-        SerpCheck = true;                                               //Enclava la bomba cada hora por los primeros 5 seg del min 0
+        SerpCheck = true;                                               //Enclava la bomba cada hora por los primeros 10 seg del min 0
         SerpSignal = true;
       }
 
@@ -458,7 +453,7 @@ void MedirFlujo(){
   nowP = millis();
 
   if(nowP - lastP >= 500){
-    float frec = (pulsos * 1.0) / ciclosFlujo; 
+    float frec = (pulsos * 1.0) / ciclosFlujo;
     float caudal_V = frec / factor;
     float caudal_m = caudal_V * densidad;
 
