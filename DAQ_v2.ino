@@ -12,22 +12,22 @@
 // *** Programa de adquisición de datos para colector solar ***
 
 // * Definiciones y constantes *
-#define pinTermo1 8
-#define pinTermo2 9
-#define BotonSerp 22
-#define BotonRec 23
-#define BombSerp 24
-#define BombRec 25   
-#define FlujoReset 29
+constexpr int pinTermo1 = 8;
+constexpr int pinTermo2 = 9;
+constexpr int BotonSerp = 22;
+constexpr int BotonRec = 23;
+constexpr int BombSerp = 24;
+constexpr int BombRec = 25;
+constexpr int FlujoReset = 29;
 
 // * Modo del Serial Monitor/Plotter
-//#define modo 1    // Flujo, TSD, TID, TSS, TES, TST, TET, TSCS, TIT, TECS, TUCS, TOCS, TMCS
-#define modo 2    // Flujo, TID, TES, TSS, TIT
-
+// 1. Flujo, TSD, TID, TSS, TES, TST, TET, TSCS, TIT, TECS, TUCS, TOCS, TMCS
+// 2. Flujo, TID, TES, TSS, TIT
+constexpr int modo = 2;
 
 // * Objetos y estructuras de los periféricos *
 // Pantalla LCD
-const int LCDcols = 20, LCDrows = 4;
+constexpr int LCDcols = 20, LCDrows = 4;
 LiquidCrystal_I2C lcd(0x27, LCDcols, LCDrows);
 
 // RTC DS3231 (Reloj de Tiempo Real)
@@ -37,7 +37,7 @@ bool h12Flag;
 bool pmFlag;
 
 // Memoria MicroSD
-const int chipSelect = 53;
+constexpr int chipSelect = 53;
 File dataFile;
 
 // OneWire y DallasTemperature
@@ -62,33 +62,37 @@ Sensores termos[] = {
   Sensores("TOCS",0x28,0xEE,0x53,0x94,0x97,0x01,0x03,0x64), //T11
   Sensores("TMCS",0x28,0xE2,0x33,0x94,0x97,0x01,0x03,0x08)  //T12
 };
+const int termos_tot = sizeof(termos)/sizeof(termos[0]);  //Saber cantidad de sensores declarados
 
 // Bombas
-unsigned long lastDebounceTime1 = 0, lastDebounceTime2 = 0;  // the last time the output pin was toggled
-unsigned long debounceDelay = 50;    // the debounce time; increase if the output flickers
-
-int BotSerpState = 0, lastSerpState = 0; //Botones de las bombas
-int BotRecState = 0, lastRecState = 0;
+bool lastSerpState = false; //Botones de las bombas
+bool lastRecState = false;
 int BombSerpState = 1; //0 = Off, 1 = Auto, 2 = Man
 int BombRecState = 1; 
 String BombState[3] = {"Off", "Aut", "Man"};
 bool SerpCheck = false; //Enclavamiento de la bomba del serpentín
 
-int T_off = 48, T_on = 44;  // Temperaturas máxima y mínima del digestor (histéresis entre T_off y T_on)
+// Temperaturas de operación
+// El control buscará operar en el setpoint dentro del rango establecido
+// siempre y cuando TES y TIT sean mayores que TID
+constexpr int T_sp = 45; // Setpoint [°C]
+constexpr int T_rng = 1;  // Rango límite (+-)
 
 // * Variables Globales *
 
 // Temporizadores
 uint32_t now = 0, last = 0, lastLCD = 0;
-uint32_t nowP = 0, lastP = 0;
+uint32_t nowF = 0, lastF = 0;
+uint32_t nowT = 0, lastT = 0;
 
 // Variables de impresión
 String anio, mes, dia, hora, min, seg, Fecha, Hora, Encabezado, Sen_Fallo, Temperaturas, BS, BR, Flujo;
 
 // Acumuladores y promediadores
-uint8_t pulsos = 0;
-int FalloAcum = 0, termos_tot = 0, deviceCount = 0, ciclosFlujo = 0, ciclosMin = 0;
-float caudalProm = 0.0;
+unsigned long acumFrec = 0;
+unsigned int ciclosFlujo = 0, ciclosMin = 0, ciclosTemp = 0;
+int FalloAcum = 0, deviceCount = 0;
+float caudalProm = 0.0, tempAcum[termos_tot] = {0.0};
 bool nuevo;
 
 // * Inicio del programa *
@@ -126,8 +130,6 @@ void setup() {
     lcd.print("SD:Ok!");
   }
 
-  termos_tot = sizeof(termos)/sizeof(termos[0]);  //Saber cantidad de sensores declarados
-
   Encabezado = "Hora,BS,BR,Flujo";
   for(int i = 0; i < termos_tot; i++){
     Encabezado = Encabezado + "," + termos[i].nom;
@@ -153,7 +155,8 @@ void setup() {
   DateTime myDT = Reloj.now();
   last = myDT.unixtime();
   lastLCD = last;
-  lastP = millis();
+  lastF = millis();
+  lastT = lastF;
 }
 
 void loop(){
@@ -188,7 +191,7 @@ void loop(){
   if(Hora != "00:00") nuevo = false;
 
 
-  for(int i = 0; i < (sizeof(termos)/sizeof(termos[0])); i++){  //Guarda en un String los nombres de los sensores no detectados
+  for(int i = 0; i < termos_tot; i++){  //Guarda en un String los nombres de los sensores no detectados
     if(!termos[i].Estado(DS18B20a) && !termos[i].Estado(DS18B20b))
       Sen_Fallo = Sen_Fallo + termos[i].nom + ", ";
   }
@@ -210,6 +213,22 @@ void loop(){
   }
 
   MedirFlujo();
+
+  if(nowT-lastT >= 5000){            //Cada 5 seg (en miliseg) 
+    DS18B20a.requestTemperatures();   //Solicita tomar lecturas 
+    DS18B20b.requestTemperatures();
+
+    while(!(DS18B20a.getWaitForConversion() && DS18B20b.getWaitForConversion())){
+      // Espera a que convierta las temperaturas
+    }
+    for(int i = 0; i < termos_tot; i++){
+      if(termos[i].Estado(DS18B20a))
+        tempAcum[i] += termos[i].Temp(DS18B20a);
+      else
+        tempAcum[i] += termos[i].Temp(DS18B20b);
+    }
+    ciclosTemp++;
+  }
   
   if(now-last >= 60){                //Cada minuto (en segundos)
     Flujo = String(caudalProm/ciclosMin);
@@ -217,16 +236,12 @@ void loop(){
     caudalProm = 0;
     ciclosMin = 0;
 
-    DS18B20a.requestTemperatures();    //Solicita tomar lecturas 
-    DS18B20b.requestTemperatures();
-
     Temperaturas = Hora + "," + BS + "," + BR + "," + Flujo;
     for(int i = 0; i < termos_tot; i++){
-      if(termos[i].Estado(DS18B20a))
-        Temperaturas = Temperaturas + "," + termos[i].Temp(DS18B20a);
-      else
-        Temperaturas = Temperaturas + "," + termos[i].Temp(DS18B20b);
+      Temperaturas = Temperaturas + "," + String(tempAcum[i]/ciclosTemp);
+      tempAcum[i] = 0.0;
     }
+    ciclosTemp = 0;
 
     dataFile = SD.open(Fecha,FILE_WRITE);
     if(dataFile){
@@ -247,7 +262,7 @@ void loop(){
 // * Funciones auxiliares *
 
 void Plotter(int mod, int ciclo){ // Ciclo: 1-Setup, 2-loop
-  String temporal;
+  float temporal;
   
   switch(mod){
     case 1:
@@ -260,7 +275,7 @@ void Plotter(int mod, int ciclo){ // Ciclo: 1-Setup, 2-loop
           else
             temporal = termos[i].Temp(DS18B20b);
           Serial.print(",");
-          Serial.print(temporal.toFloat());
+          Serial.print(temporal);
         }
         Serial.println();
       }
@@ -276,7 +291,7 @@ void Plotter(int mod, int ciclo){ // Ciclo: 1-Setup, 2-loop
             else
               temporal = termos[i].Temp(DS18B20b);
             Serial.print(",");
-            Serial.print(temporal.toFloat());
+            Serial.print(temporal);
           }
         }
         Serial.println();
@@ -317,52 +332,48 @@ void Bombas(int boton1, int boton2){
 
   bool SerpSignal = false, RecSignal = false;
 
-  String nombre, TIT, TID, TES, TSS;
+  String nombre;
+  float tit = 0, tid = 0, tes = 0, tss = 0;
   
   for(int i = 0; i < termos_tot; i++){          // Recorre los sensores
     nombre = termos[i].nom;
     if(nombre == "TID"){                        // Busca por nombre y guarda su valor
       if(termos[i].Estado(DS18B20a))
-        TID = termos[i].Temp(DS18B20a);
+        tid = termos[i].Temp(DS18B20a);
       else
-        TID = termos[i].Temp(DS18B20b);
+        tid = termos[i].Temp(DS18B20b);
     }
     if(nombre == "TSS"){
       if(termos[i].Estado(DS18B20a))
-        TSS = termos[i].Temp(DS18B20a);
+        tss = termos[i].Temp(DS18B20a);
       else
-        TSS = termos[i].Temp(DS18B20b);
+        tss = termos[i].Temp(DS18B20b);
     }
     if(nombre == "TES"){
       if(termos[i].Estado(DS18B20a))
-        TES = termos[i].Temp(DS18B20a);
+        tes = termos[i].Temp(DS18B20a);
       else
-        TES = termos[i].Temp(DS18B20b);
+        tes = termos[i].Temp(DS18B20b);
     }
     if(nombre == "TIT"){
       if(termos[i].Estado(DS18B20a))
-        TIT = termos[i].Temp(DS18B20a);
+        tit = termos[i].Temp(DS18B20a);
       else
-        TIT = termos[i].Temp(DS18B20b);
+        tit = termos[i].Temp(DS18B20b);
     }
   }
 
-  float tit = TIT.toFloat();
-  float tid = TID.toFloat();
-  float tes = TES.toFloat();
-  float tss = TSS.toFloat();
+  if(!lastSerpState && boton1 == 1) lastSerpState = true;
+  if(!lastRecState && boton2 == 1) lastRecState = true;
 
-  if(lastSerpState == 0 && boton1 == 1) lastSerpState = 1;
-  if(lastRecState == 0 && boton2 == 1) lastRecState = 1;
-
-  if(lastSerpState == 1 && boton1 == 0){
-    lastSerpState = 0;
+  if(lastSerpState && boton1 == 0){
+    lastSerpState = false;
     if(BombSerpState >= 2) BombSerpState = 0;
     else BombSerpState++;
   }
 
-  if(lastRecState == 1 && boton2 == 0){
-    lastRecState = 0;
+  if(lastRecState && boton2 == 0){
+    lastRecState = false;
     if(BombRecState >= 2) BombRecState = 0;
     else BombRecState++;
   }
@@ -376,7 +387,7 @@ void Bombas(int boton1, int boton2){
       // fuera de los 10 seg al inicio de cada hora del horario establecido
       
       if(SerpCheck && ((myDT.second() > 10 && myDT.minute() == 0) || myDT.minute() >= 1)){ // Si ya pasaron los 10 seg del min 0
-        if(tes >= T_on && tes >= tid)    // y el agua que entra al serpentín está mas caliente que T_on y que la biomasa
+        if(tes >= (T_sp-T_rng) && tes >= tid)    // y el agua que entra al serpentín está mas caliente que (T_sp - T_rng) y que la biomasa
           SerpSignal = true;                // mantiene encendida la bomba
         else{
           SerpSignal = false;             //Si no, apaga la bomba y rompe el enclavamiento hasta la siguiente hora
@@ -384,13 +395,14 @@ void Bombas(int boton1, int boton2){
         }
       }
 
-      if(myDT.hour() >= 9 && myDT.hour() <= 18 && myDT.minute() == 0 && myDT.second() <= 10){ //Entre las 9 am y las 6 pm
-
+//    Comentar y descomentar la linea requerida dependiendo si BS opera todo el día o solo dentro de un horario establecido
+//      if(myDT.hour() >= 9 && myDT.hour() <= 18 && myDT.minute() == 0 && myDT.second() <= 10){ //Entre las 9 am y las 6 pm
+      if(myDT.minute() == 0 && myDT.second() <= 10){                   // Todo el día 
         SerpCheck = true;                                               //Enclava la bomba cada hora por los primeros 10 seg del min 0
         SerpSignal = true;
       }
 
-      if(tid >= T_off)  SerpSignal = false; // Si el digestor está por arriba de T_off, apaga la bomba      
+      if(tid >= (T_sp + T_rng))  SerpSignal = false; // Si el digestor está por arriba de T_sp + T_rng, apaga la bomba      
       
       break;
     case 2:
@@ -447,20 +459,20 @@ void MedirFlujo(){
   float factor = 7.5; // Factor de conversión 1/2"(7.5), 3/4"(5.5), 1"(3.5)
   float densidad = 1.0; // kg/L
   
-  byte portCValue = PINC;
+  uint8_t portCValue = PINC;
 
-  pulsos += float(portCValue);
+  acumFrec += portCValue;
   ciclosFlujo++;
-  nowP = millis();
+  nowF = millis();
 
-  if(nowP - lastP >= 500){
-    float frec = (pulsos * 1.0) / ciclosFlujo; 
+  if(nowF - lastF >= 500){
+    float frec = (ciclosFlujo > 0) ? (float)acumFrec / ciclosFlujo : 0;
     float caudal_V = frec / factor;
     float caudal_m = caudal_V * densidad;
 
     // Serial.print(portCValue,BIN);
     // Serial.print("  ");
-    // Serial.print(pulsos);
+    // Serial.print(acumFrec);
     // Serial.print("  ");
     // Serial.println(frec);
 
@@ -470,14 +482,14 @@ void MedirFlujo(){
 
     caudalProm += caudal_m;
     ciclosMin++;
-    pulsos = 0;
+    acumFrec = 0;
     ciclosFlujo = 0;
 
     ClearRow(2);
     lcd.setCursor(0, 2);
     lcd.print("F:"); lcd.print(caudal_m);
 
-    lastP = millis();
+    lastF = millis();
   }
 }
 

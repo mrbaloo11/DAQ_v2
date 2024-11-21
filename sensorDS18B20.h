@@ -11,7 +11,7 @@
       String nom;           //Nombre del sensor, eg. TST (Temp Salida Termotanque)
       Sensores();
       Sensores(String nombre, uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t d8);
-      String Temp(DallasTemperature Objeto);
+      float Temp(DallasTemperature Objeto);
       void CambiarDir(uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t d8);
       bool Estado(DallasTemperature Objeto);
 
@@ -31,14 +31,13 @@
     dir[6] = d7;  dir[7] = d8;
   }
 
-  String Sensores::Temp(DallasTemperature Objeto){
+  float Sensores::Temp(DallasTemperature Objeto){
     if(Objeto.isConnected(dir)){
       tempC = Objeto.getTempC(dir);
       estado = true;
     }
     else estado = false;
-    String _tempC = String(tempC);
-    return _tempC;
+    return tempC;
   }
 
   void Sensores::CambiarDir(uint8_t d1, uint8_t d2, uint8_t d3, uint8_t d4, uint8_t d5, uint8_t d6, uint8_t d7, uint8_t d8){
