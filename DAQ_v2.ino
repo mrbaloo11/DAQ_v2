@@ -221,6 +221,7 @@ void loop(){
     while(!(DS18B20a.getWaitForConversion() && DS18B20b.getWaitForConversion())){
       // Espera a que convierta las temperaturas
     }
+    Plotter(modo,2); 
     for(int i = 0; i < termos_tot; i++){
       if(termos[i].Estado(DS18B20a))
         tempAcum[i] += termos[i].Temp(DS18B20a);
@@ -248,7 +249,6 @@ void loop(){
       dataFile.println(Temperaturas);
       dataFile.close();
       // Serial.println(Temperaturas);
-      Plotter(modo,2); 
     }
     //else Serial.println("Error al abrir el archivo...");
 
