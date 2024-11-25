@@ -385,24 +385,26 @@ void Bombas(int boton1, int boton2){
     case 1:
       // Para aprovechar la prog estructurada, primero revisa si mantiene el enclavamiento
       // fuera de los 10 seg al inicio de cada hora del horario establecido
-      
-      if(SerpCheck && ((myDT.second() > 10 && myDT.minute() == 0) || myDT.minute() >= 1)){ // Si ya pasaron los 10 seg del min 0
-        if(tes >= (T_sp-T_rng) && tes >= tid)    // y el agua que entra al serpentín está mas caliente que (T_sp - T_rng) y que la biomasa
-          SerpSignal = true;                // mantiene encendida la bomba
-        else{
-          SerpSignal = false;             //Si no, apaga la bomba y rompe el enclavamiento hasta la siguiente hora
-          SerpCheck = false;
-        }
-      }
 
-//    Comentar y descomentar la linea requerida dependiendo si BS opera todo el día o solo dentro de un horario establecido
-//      if(myDT.hour() >= 9 && myDT.hour() <= 18 && myDT.minute() == 0 && myDT.second() <= 10){ //Entre las 9 am y las 6 pm
-      if(myDT.minute() == 0 && myDT.second() <= 10){                   // Todo el día 
-        SerpCheck = true;                                               //Enclava la bomba cada hora por los primeros 10 seg del min 0
-        SerpSignal = true;
-      }
+////    Comentar y descomentar la linea requerida dependiendo si BS opera por 10 seg o todo el minuto
+//      if(SerpCheck && ((myDT.second() > 10 && myDT.minute() == 0) || myDT.minute() >= 1)){ // Si ya pasaron los 10 seg del min 0
+//        if(tid <= (T_sp-T_rng) && tes >= tid)    // además, el digestor está más frío que (T_sp-T_rng) y el agua que entra está más caliente que el digestor
+//          SerpSignal = true;                // mantiene encendida la bomba
+//        else{
+//          SerpSignal = false;             //Si no, apaga la bomba y rompe el enclavamiento hasta la siguiente hora
+//          SerpCheck = false;
+//        }
+//      }
+//
+////    Comentar y descomentar la linea requerida dependiendo si BS opera todo el día o solo dentro de un horario establecido
+////      if(myDT.hour() >= 9 && myDT.hour() <= 18 && myDT.minute() == 0 && myDT.second() <= 10){ //Entre las 9 am y las 6 pm
+//      if(myDT.minute() == 0 && myDT.second() <= 10){                   // Todo el día, por 10 segundos 
+//        SerpCheck = true;                                               //Enclava la bomba cada hora
+//        SerpSignal = true;
+//      }
 
-      if(tid >= (T_sp + T_rng))  SerpSignal = false; // Si el digestor está por arriba de T_sp + T_rng, apaga la bomba      
+      if(tid < (T_sp - T_rng))  SerpSignal = true;                            // Si el digestor está por debajo de T_sp - T_rng, enciende la bomba
+      if(tid >= (T_sp + T_rng) || tit < (T_sp - T_rng))  SerpSignal = false;  // Si el digestor está por arriba de T_sp + T_rng o el termotanque esta frío, apaga la bomba      
       
       break;
     case 2:
